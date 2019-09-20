@@ -1,0 +1,414 @@
+\documentclass[a4paper,
+               %boxit,        % check whether paper is inside correct margins
+               %titlepage,    % separate title page
+               %refpage       % separate references
+               %biblatex,     % biblatex is used
+               keeplastbox,   % flushend option: not to un-indent last line in References
+               %nospread,     % flushend option: do not fill with whitespace to balance columns
+               %hyphens,      % allow \url to hyphenate at "-" (hyphens)
+               %xetex,        % use XeLaTeX to process the file
+               %luatex,       % use LuaLaTeX to process the file
+               ]{jacow}
+%
+% ONLY FOR \footnote in table/tabular
+%
+\usepackage{pdfpages,multirow,ragged2e} %
+\usepackage{listings}
+\lstset{basicstyle=\footnotesize\ttfamily,breaklines=true}
+\lstset{framextopmargin=50pt}
+\lstset{columns=fullflexible}
+%
+% CHANGE SEQUENCE OF GRAPHICS EXTENSION TO BE EMBEDDED
+% ----------------------------------------------------
+% test for XeTeX where the sequence is by default eps-> pdf, jpg, png, pdf, ...
+%    and the JACoW template provides JACpic2v3.eps and JACpic2v3.jpg which
+%    might generates errors, therefore PNG and JPG first
+%
+\makeatletter%
+	\ifboolexpr{bool{xetex}}
+	 {\renewcommand{\Gin@extensions}{.pdf,%
+	                    .png,.jpg,.bmp,.pict,.tif,.psd,.mac,.sga,.tga,.gif,%
+	                    .eps,.ps,%
+	                    }}{}
+\makeatother
+
+% CHECK FOR XeTeX/LuaTeX BEFORE DEFINING AN INPUT ENCODING
+% --------------------------------------------------------
+%   utf8  is default for XeTeX/LuaTeX
+%   utf8  in LaTeX only realises a small portion of codes
+%
+\ifboolexpr{bool{xetex} or bool{luatex}} % test for XeTeX/LuaTeX
+ {}                                      % input encoding is utf8 by default
+ {\usepackage[utf8]{inputenc}}           % switch to utf8
+
+\usepackage[USenglish]{babel}
+
+%
+% if BibLaTeX is used
+%
+\ifboolexpr{bool{jacowbiblatex}}%
+ {%
+  \addbibresource{jacow-test.bib}
+  \addbibresource{biblatex-examples.bib}
+ }{}
+\listfiles
+
+\begin{document}
+
+\title{pyAT, Pytac and \NoCaseChange{pythonSoftIoc}: a Pure Python Virtual Accelerator} 
+
+\author{W. Rogers, T. J. R. Nicholls, A. A. Wilson, Diamond Light Source, Oxfordshire, UK}
+	
+\maketitle
+
+\begin{abstract}
+Virtual accelerators are used for testing control system software against
+realistic accelerator simulations. Previous virtual accelerators for 
+synchrotron light sources have used Tracy \cite{tracy} and Elegant \cite{elegant} as the simulator,
+but without Python bindings for accelerator simulations it has been difficult 
+to create a virtual accelerator using Python. With the development of 
+Python Accelerator Toolbox (pyAT) \cite{pyat}, that is now possible. This paper 
+describes the combination of pyAT, Python Toolkit for Accelerator Controls 
+(Pytac) and pythonSoftIoc to create an EPICS-based virtual accelerator for 
+Diamond Light Source.
+\end{abstract}
+
+\section{Motivation}
+
+High-level control system software is designed to interact with the control system
+that is connected to the real hardware. Testing this software can be inconvenient
+for two main reasons: during design and commissioning the hardware might not
+yet exist, and during its operational lifetime the hardware is in use most of
+the time.
+
+A \textit{virtual accelerator} is an application that allows testing a control
+system by providing the same interface as a subset of the control system that 
+is required for the operation of high-level applications. Although it is possible
+to provide dummy values for different control system parameters, it is much more 
+useful tocombine those parameters with a simulation so that they respond in a 
+physically accurate way to any changes. The software under test then requires no 
+changes in order to run against a virtual accelerator.
+
+Python has a number of advantages for developing a virtual accelerator:
+it is free and open source, very widely used in both science and industry,
+has many useful third-party libraries available, is quick to start development
+and is capable of building large applications that scale well.
+
+To build this virtual accelerator we needed a number of components:
+
+\begin{itemize}
+    \item a simulation code for synchrotron light sources that can be called from Python
+    \item a Python framework that understands the elements of a particle accelerator 
+    \item the ability to convert between engineering units (used in the control system) and physics
+  units (used in simulation codes)
+    \item a server that can hook the Python code into the control system
+\end{itemize}
+
+The following sections describe these components.
+
+\section{pyAT}
+
+Accelerator Toolbox (AT) \cite{at} is a simulation code for synchrotron light sources
+developed for use in Matlab. Its numerical engine is based around
+'integrators' that calculate the effect of a particle in 6D phase space.
+For efficiency purposes these integrators were written in C and compiled for
+use in Matlab.
+
+This design allowed for the same integrators to be compiled for use in Python
+code. pyAT uses the same numerical engine as AT, with Python classes and functions
+written to derive accelerator parameters from the engine. It uses the libraries
+NumPy and SciPy for several numerical utilities.
+
+pyAT provides a number of features. Lattice and element types are defined and may
+be loaded and saved to different file formats. It performs particle tracking and 
+allows calculation of transfer matrices and closed orbit with radiation included
+or excluded. Other derived parameters that are calculated include linear optics,
+radiation integrals and detail of the beam envelope. It includes a plotting package
+that uses Matplotlib to provide various plotting functions.
+
+Testing has shown pyAT to give exactly the same numerical results as AT with 
+a speed comparable to other accelerator simulations \cite{pyat}.
+
+\section{Pytac}
+
+Python Toolkit for Accelerator Controls (Pytac) is a Python library designed to
+enable working with the different parts of accelerators. Each element in an
+accelerator is represented by an object that may have one or more 'fields' 
+corresponding to physical parameters. The ability to address the different 
+elements of an accelerator by position in the accelerator and element family
+is often useful in high-level applications and Python scripts.
+
+\begin{lstlisting}
+>>> bpm1 = lattice.get_elements('BPM')[0]
+>>> bpm1.fields()[pytac.LIVE]
+['enabled', 'x', 'y']
+>>> bpm1.get_value('x', data_source=pytac.LIVE)
+-2.1e-5
+\end{lstlisting}
+
+ Pytac allows requesting the live values of the parameters from the accelerator
+control system. It also allows efficiently requesting the values for an entire
+family.
+
+\begin{lstlisting}
+>>> lattice.get_element_values('BPM', 'x')
+[-4.6e-05, 8.2e-05, 7e-05, ...]
+\end{lstlisting}
+
+Many of the ideas in Pytac were inspired by a similar application Matlab Middle
+Layer \cite{mml}.
+
+\subsection{Unit Conversion}
+
+It is often useful to use the same accelerator parameter in different unit systems:
+the units used by physicists for calculations, and the units used by the control
+system for control and monitoring. Pytac has a built-in unit conversion mechanism
+that allows requesting and setting parameters in either of these unit systems. The
+following example requests a quadrupole setting in engineering units ($A$) and
+physics units ($Tm^{-1}$):
+
+\begin{lstlisting}
+>>> quad.get_value('b1', units=pytac.ENG)
+103.18108367919922
+>>> quad.get_value('b1', units=pytac.PHYS)
+-1.0192934647760261
+\end{lstlisting}
+
+Two unit conversion mechanisms are currently available: polynomial (often used for 
+linear conversions) and piecewise cubic hermite interpolating polynomial (PCHIP),
+an algorithm that allows smoothed interpolation between arbitrary measured data
+points. Implementing further unit conversion mechanisms is simple.
+
+\subsection{Configuration}
+
+The accelerator definition is stored in a number of CSV files. These are easy
+to edit and are efficiently stored in the Git version control system. The
+configurations for the Diamond accelerators are exported using a Matlab script
+from the existing configurations that are set up in MML.
+
+\section{ATIP}
+
+Accelerator Toolbox Interface for Pytac (ATIP) is the adapter that makes pyAT
+available as a simulator for Pytac. Once loaded, pyAT provides an online model
+for interactive use in Pytac.
+
+\begin{lstlisting}
+>>> lattice.set_default_data_source(pytac.SIM)
+>>> lattice.get_element_values('BPM', 'x')
+[0.0, 0.0, 0.0, ...]
+>>> h_corr = lattice.get_elements('HSTR')[0]
+>>> h_corr.set_value('x_kick', 0.1, units=pytac.ENG)
+>>> lattice.get_element_values('BPM', 'x')
+[0.24630504031808942, 0.12495575893699563, 
+ -0.1257213016476168, ...]
+\end{lstlisting}
+
+ATIP has a simple threading mechanism. Any changes that would require a recalculation
+using pyAT are placed on a queue. A simulation thread loops checking whether there
+are any items in the queue. If so, it empties the queue, applies each change to its
+model and recalculates. When a request for data is received, ATIP will check whether
+an update is pending and if so will wait until the recalculation is complete before
+returning that data.
+
+\begin{figure}[!hbt]
+    \centering
+    \includegraphics*[width=\columnwidth]{atip}
+
+    \caption{How ATIP integrates into Pytac}
+    \label{fig:atip}
+\end{figure}
+
+\section{pythonSoftIoc}
+
+At Diamond Light Source we use the EPICS distributed control system, with many
+servers known as IOCs that provide some subset of the control system parameters
+(process variables, or PVs). Many IOCs are embedded devices that interact
+directly with hardware, but often it is useful to make standalone IOCs that may
+not represent hardware devices at all; these are called \textit{soft IOCs}.
+pythonSoftIoc \cite{pythonioc} is a Python library that allows creating an EPICS IOC
+using only Python code. The virtual accelerator uses this library to create
+an IOC using the PV names used on the Diamond accelerator, then respond
+appropriately to any interactions.
+
+\section{A Pure Python Virtual Accelerator}
+
+Using the tools above, it is now possible to assemble a virtual accelerator
+using only Python. The definition of the accelerator is provided by Pytac.
+The accelerator simulation is provided by pyAT. The EPICS IOC is provided by 
+pythonSoftIoc.
+
+This virtual accelerator is now being used to test the following high-level applications
+at Diamond.
+
+\subsection{High-Level Applications}
+
+\subsubsection{Slow Orbit Feedback}
+
+The slow orbit feedback system is well simulated using the virtual accelerator.
+The beam position is simulated and returned via the BPM elements; the feedback
+system calculates a correction to be applied to the corrector magnets over EPICS
+and the simulation is updated once the correction has been applied. The \SI{1}{Hz} rate
+of the slow feedback system can be handled by the virtual accelerator.
+
+\subsubsection{RF Feedback} 
+
+The orbit feedback systems correct the beam orbit so that the BPM readings are zero.
+However, there are multiple solutions to this, some of which may have forced the
+electrons to a different energy than designed. The RF feedback system determines
+whether the net effect of the corrector magnets includes such a change; if so, it
+changes the RF frequency to remove it. The slow orbit feedback and RF feedback 
+systems work together, and can both be tested against the virtual accelerator.
+
+\subsubsection{Tune Feedback}
+
+Diamond's tune feedback system \cite{feedbacks} uses a subset of the quadrupoles 
+to correct variations in the tunes. A response matrix dictates how the tunes 
+change when the quadrupole settings change; this matrix is inverted to determine 
+the quadrupole changes required to correct a deviation in the vertical and 
+horizontal tunes.
+
+\subsubsection{Vertical Emittance Feedback}
+
+Diamond runs a vertical emittance feedback that keeps the beam size broadly constant.
+Since pyAT provides the emittance value for the ring using the Ohmi Envelope formalism,
+it is possible to use the virtual accelerator to test the vertical emittance feedback
+system.
+
+\subsubsection{Burt}
+
+The Back Up and Restore Tool (Burt) is used at Diamond to save and restore machine
+configuration in the form of stored values for specific PVs. We have used the virtual
+accelerator to test Burt functionality as we develop a new version of Burt in Python.
+Burt may also be used to save different configurations of the virtual accelerator.
+
+\subsection{Challenges}
+
+There are a number of details of the high level applications that make using the
+virtual accelerator challenging.
+
+\subsubsection{Speed of calculation and update rates}
+
+A fundamental limitation of this design of virtual accelerator is the elapsed time
+taken in order to recalculate machine parameters. These simulations are typically
+run on desktop machines.
+
+The simulation used for the virtual accelerator has the two parts summarised in 
+Table~\ref{simfunctions}. This gives an approximate update rate of \SI{1}{Hz}, sufficient
+for most of the high-level applications.
+
+The one example for which this caused problems was the vertical emittance feedback
+system. The PV that provides the vertical emittance value updates at about \SI{5}{Hz},
+and the feedback system reports slower updates as a failure. As Python is inherently
+single-threaded it is impossible to update a PV on the virtual accelerator while 
+the recalculation is taking place; in any case, unless there are valid new values to
+report more frequent updates may cause feedback systems to misbehave.
+
+The vertical emittance feedback system can be tested against the virtual accelerator
+if the update check is removed; whether this check is useful in the application itself is
+being considered.
+
+\begin{table}[!hbt]
+   \centering
+   \caption{Virtual Accelerator simulation functions executed on a typical desktop PC}
+   \begin{tabular}{lcc}
+       \toprule
+       \textbf{Function} & \textbf{Description}                      & \textbf{Runtime} \\
+       \midrule
+           \texttt{linopt()}         & Derive linear optics            & \SI{0.25}{s}        \\
+           \texttt{ohmi\_envelope()}  & Calculate emittance      & \SI{0.65}{s}        \\
+       \bottomrule
+   \end{tabular}
+   \label{simfunctions}
+\end{table}
+
+\subsubsection{Control system complexities}
+
+Sometimes the EPICS Control System is more complicated than the simple view presented
+by a virtual accelerator.
+
+One example at Diamond is the way that the quadrupoles are 
+controlled, which uses a number of PVs to aggregate contributions to the magnet
+setpoint from different sources, one of which is the tune feedback system \cite{feedbacks}.
+In this case it was possible to test the tune feedback system by providing 'mirror'
+PVs that respond in the same way to the original setpoint PVs; in other cases
+simple transforms can be applied to the PV value.
+
+Certain PVs at Diamond are available as individual PVs per element but are also
+available for convenience as a waveform PV: for example, there are two waveform
+PVs containing all 173 BPM values in the horizontal and vertical planes. The natural
+way for the virtual accelerator to provide this information is per-element, but
+applications are more likely to use the waveforms. To solve this we added a
+configuration mechanism to aggregate individual values into addtional waveform PVs.
+
+These transformations are handled by classes in ATIP, and it would be possible to
+make other transformations by writing similar classes.
+
+\section{Notes on software}
+
+All of the components described above are open source and the source code is available
+on Github. pyAT, Pytac and ATIP are available on the Python Package Index (PyPI) \cite{pypi} 
+for simple installation using pip. Any interest in using or collaborating on these 
+projects would be welcomed.
+
+Jupyter notebooks are a good way of demonstrating the capabilities of these applications.
+Some example notebooks exist in the Git repositories, and further examples are being developed.
+
+Python versions 2.7 and 3.5+ are supported, although Python 2 support will be dropped
+in the near future in line with the rest of the Python community.
+
+\section{Further work}
+
+The components described above begin to form a versatile toolkit for accelerator
+physics and control system applications using Python. 
+
+The next application in this toolkit is Visualiser and Optimiser for Linear Optics
+(Volo), which uses ATIP and pyAT to allow interactive lattice viewing and editing
+via a PyQt GUI. Most of the capability for this tool exists in the components
+described above, meaning that the Volo project mostly requires using these components
+and constructing an intuitive user interace. A prototype of this application is under
+development.
+
+\begin{figure}[!hbt]
+    \centering
+    \includegraphics*[width=\columnwidth]{volo}
+
+    \caption{A screenshot from an early version of Volo}
+    \label{fig:volo}
+\end{figure}
+
+\begin{thebibliography}{9}                                                      
+                  
+\bibitem{tracy}
+    Nishimura, Hiroshi. (1988). TRACY: A tool for accelerator design and analysis (LBL--25236)
+
+\bibitem{elegant}                                                               
+    M. Borland, "elegant: A Flexible SDDS-Compliant Code for Accelerator Simulation," Advanced Photon Source LS-287, September 2000.
+      
+\bibitem{pyat}
+    W. Rogers, N. Carmignani, L. Farvacque, and B. Nash,
+    \textquotedblleft{pyAT: A Python Build of Accelerator Toolbox}\textquotedblright,
+    in \emph{Proc. 8th Int. Particle Accelerator Conf. (IPAC'17)}, 
+    Copenhagen, Denmark, May 2017
+
+\bibitem{mml}
+     Portmann, G. et al, "An Accelerator Control Middle Layer Using Matlab", 
+     in Conf.Proc. C0505161 (2005) 4009 SLAC-PUB-11445, LBNL-PUB-925, PAC-2005-FPAT077 
+     
+\bibitem{at}                                                                    
+    A. Terebilo, "Accelerator Toolbox for MATLAB", SLAC-PUB-8732, 2001.   
+    
+\bibitem{feedbacks}
+  M.~Heron {\it et al.},
+  "Feed-forward and Feedback Schemes applied to the Diamond Light Source Storage Ring",
+      in \emph{Proc. 8th Int. Particle Accelerator Conf. (IPAC'14)}, 
+    Dresden, Germany, May 2014
+
+\bibitem{pythonioc}                                                                  
+    pythonSoftIOC on Github, \url{https://github.com/Araneidae/pythonIoc} 
+    
+\bibitem{pypi}                                                                  
+    PyPI, \url{https://pypi.python.org/pypi} 
+                                                  
+\end{thebibliography}                                                 
+
+\end{document}
