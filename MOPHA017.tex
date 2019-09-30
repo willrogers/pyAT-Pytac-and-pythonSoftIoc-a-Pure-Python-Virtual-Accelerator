@@ -176,8 +176,9 @@ physics units ($Tm^{-1}$):
 
 Two unit conversion mechanisms are currently available: polynomial (often used for 
 linear conversions) and piecewise cubic hermite interpolating polynomial (PCHIP),
-an algorithm that allows smoothed interpolation between arbitrary measured data
-points. Implementing further unit conversion mechanisms is simple.
+an algorithm provided by SciPy \cite{pchip} that allows smoothed interpolation 
+between arbitrary measured data points. Implementing further unit conversion 
+mechanisms is simple.
 
 \subsection{Configuration}
 
@@ -203,12 +204,12 @@ for interactive use in Pytac.
  -0.1257213016476168, ...]
 \end{lstlisting}
 
-ATIP has a simple threading mechanism. Any changes that would require a recalculation
-using pyAT are placed on a queue. A simulation thread loops checking whether there
-are any items in the queue. If so, it empties the queue, applies each change to its
-model and recalculates. When a request for data is received, ATIP will check whether
-an update is pending and if so will wait until the recalculation is complete before
-returning that data.
+ATIP has a simple asynchronous threading mechanism. Any changes that would require a
+recalculation using pyAT are placed on a queue. A dedicated simulation thread loops
+continuously, checking whether there are any items in the queue. If so, it empties the
+queue, applies each change to its model and recalculates. When a request for data is
+received, ATIP will check whether an update is pending and if so will wait until 
+the recalculation is complete before returning that data.
 
 \begin{figure}[!hbt]
     \centering
@@ -233,9 +234,16 @@ appropriately to any interactions.
 \section{A Pure Python Virtual Accelerator}
 
 Using the tools above, it is now possible to assemble a virtual accelerator
-using only Python. The definition of the accelerator is provided by Pytac.
-The accelerator simulation is provided by pyAT. The EPICS IOC is provided by 
-pythonSoftIoc.
+using only Python. The definition of the accelerator is provided by Pytac,
+the accelerator simulation is provided by pyAT, and the EPICS IOC is provided by 
+pythonSoftIoc: see Fig.~\ref{fig:virtac}.
+
+\begin{figure}[!hbt]
+    \centering
+    \includegraphics*[width=\columnwidth]{MOPHA017f3}
+    \caption{How high-level applications may use either the control system (left) or the virtual accelerator (right) interchangeably.}
+    \label{fig:virtac}
+\end{figure}
 
 This virtual accelerator is now being used to test the following high-level applications
 at Diamond.
@@ -401,6 +409,9 @@ development.
   "Feed-forward and Feedback Schemes applied to the Diamond Light Source Storage Ring",
       in \emph{Proc. 8th Int. Particle Accelerator Conf. (IPAC'14)}, 
     Dresden, Germany, May 2014
+    
+\bibitem{pchip}
+ SciPy documentation for PCHIP, \url{https://docs.scipy.org/doc/scipy-0.18.1/reference/generated/scipy.interpolate.PchipInterpolator.html}
 
 \bibitem{pythonioc}                                                                  
     pythonSoftIOC on Github, \url{https://github.com/Araneidae/pythonIoc} 
