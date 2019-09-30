@@ -55,9 +55,9 @@
 
 \begin{document}
 
-\title{pyAT, Pytac and \NoCaseChange{pythonSoftIoc}: a Pure Python Virtual Accelerator} 
+\title{pyAT, Pytac and pythonSoftIoc: a Pure Python Virtual Accelerator} 
 
-\author{W. Rogers, T. J. R. Nicholls, A. A. Wilson, Diamond Light Source, Oxfordshire, UK}
+\author{W. Rogers\thanks{will.rogers@diamond.ac.uk}, T. J. R. Nicholls, A. A. Wilson, Diamond Light Source, Oxfordshire, UK}
 	
 \maketitle
 
@@ -85,13 +85,13 @@ A \textit{virtual accelerator} is an application that allows testing a control
 system by providing the same interface as a subset of the control system that 
 is required for the operation of high-level applications. Although it is possible
 to provide dummy values for different control system parameters, it is much more 
-useful tocombine those parameters with a simulation so that they respond in a 
+useful to combine those parameters with a simulation so that they respond in a 
 physically accurate way to any changes. The software under test then requires no 
 changes in order to run against a virtual accelerator.
 
 Python has a number of advantages for developing a virtual accelerator:
-it is free and open source, very widely used in both science and industry,
-has many useful third-party libraries available, is quick to start development
+it is free and open source, is very widely used in both science and industry,
+has many useful third-party libraries available, is simple to start using
 and is capable of building large applications that scale well.
 
 To build this virtual accelerator we needed a number of components:
@@ -156,7 +156,7 @@ family.
 \end{lstlisting}
 
 Many of the ideas in Pytac were inspired by a similar application Matlab Middle
-Layer \cite{mml}.
+Layer (MML) \cite{mml}.
 
 \subsection{Unit Conversion}
 
@@ -212,7 +212,7 @@ returning that data.
 
 \begin{figure}[!hbt]
     \centering
-    \includegraphics*[width=\columnwidth]{atip}
+    \includegraphics*[width=\columnwidth]{MOPHA017f1}
 
     \caption{How ATIP integrates into Pytac}
     \label{fig:atip}
@@ -269,16 +269,16 @@ horizontal tunes.
 
 \subsubsection{Vertical Emittance Feedback}
 
-Diamond runs a vertical emittance feedback that keeps the beam size broadly constant.
-Since pyAT provides the emittance value for the ring using the Ohmi Envelope formalism,
-it is possible to use the virtual accelerator to test the vertical emittance feedback
-system.
+Diamond runs a vertical emittance feedback system \cite{feedbacks} that keeps the beam 
+size broadly constant. Since pyAT provides the emittance value for the ring using the 
+Ohmi Envelope formalism, it is possible to use the virtual accelerator to test the 
+vertical emittance feedback system.
 
-\subsubsection{Burt}
+\subsubsection{BURT}
 
-The Back Up and Restore Tool (Burt) is used at Diamond to save and restore machine
+The Back Up and Restore Tool (BURT) is used at Diamond to save and restore machine
 configuration in the form of stored values for specific PVs. We have used the virtual
-accelerator to test Burt functionality as we develop a new version of Burt in Python.
+accelerator to test BURT functionality as we develop a new version of Burt in Python.
 Burt may also be used to save different configurations of the virtual accelerator.
 
 \subsection{Challenges}
@@ -304,7 +304,7 @@ the recalculation is taking place; in any case, unless there are valid new value
 report more frequent updates may cause feedback systems to misbehave.
 
 The vertical emittance feedback system can be tested against the virtual accelerator
-if the update check is removed; whether this check is useful in the application itself is
+if the update check is disabled; whether this check is useful in the application itself is
 being considered.
 
 \begin{table}[!hbt]
@@ -353,8 +353,8 @@ projects would be welcomed.
 Jupyter notebooks are a good way of demonstrating the capabilities of these applications.
 Some example notebooks exist in the Git repositories, and further examples are being developed.
 
-Python versions 2.7 and 3.5+ are supported, although Python 2 support will be dropped
-in the near future in line with the rest of the Python community.
+Python versions 2.7 and 3.5+ are supported, although Python 2 support will be deprecated
+in the near future in line with the approach of the rest of the Python community.
 
 \section{Further work}
 
@@ -370,8 +370,7 @@ development.
 
 \begin{figure}[!hbt]
     \centering
-    \includegraphics*[width=\columnwidth]{volo}
-
+    \includegraphics*[width=\columnwidth]{MOPHA017f2}
     \caption{A screenshot from an early version of Volo}
     \label{fig:volo}
 \end{figure}
